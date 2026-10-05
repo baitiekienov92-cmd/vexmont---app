@@ -1,0 +1,88 @@
+{% extends "base.html" %}{% block title %}Кв. {{ f.number }} — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('flats', cid=c.id) %}{% include "_back.html" %}{% endwith %}<h1>Кв. {{ f.number }}</h1>
+<a class="icb" href="#info" onclick="document.getElementById('info').open=true" aria-label="Об объекте"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg></a></header>{% endblock %}
+{% block content %}
+{% set t = tab %}
+<div class="seg">
+  {% for k, l in [('stages','Этапы'),('cams','Камеры'),('buy','Закуп'),('checks','Чеки')] %}
+  <a href="{{ url_for('flat', fid=f.id, tab=k) }}" class="{{ 'on' if t==k }}">{{ l }}</a>{% endfor %}
+</div>
+
+{% if t != 'stages' %}
+<div class="soon"><b style="color:var(--ink)">{{ {'cams':'Камеры','buy':'Закуп','checks':'Чеки'}[t] }}</b><br>Модуль подключаем следующим этапом. Сейчас работает приёмка этапов.</div>
+{% else %}
+<details class="card" id="info"><summary style="cursor:pointer;font-weight:600">{{ c.name }} · кв. {{ f.number }}</summary>
+  <div class="small" style="margin-top:8px">{{ c.sub }} · {{ c.city }} · {{ f.kind }}<br>Сдано прорабом: {{ st.p }} из {{ N }} · Принято ОКК: {{ st.o }} из {{ N }}</div>
+</details>
+<div class="card">
+  {% with p=st %}{% include "_two.html" %}{% endwith %}
+  <div class="bar18">{% for s in st.states %}<i class="{{ s if s!='no' }}"></i>{% endfor %}</div>
+  <div class="small">1 этап = 5,56%. Принятые ОКК этапы уходят вниз списка.</div>
+</div>
+
+{% for cd in cards %}{% set i = cd.i %}
+<details class="stage {{ cd.state }}" id="s{{ i }}" {{ 'open' if open_st == i }}>
+  <summary>
+    <span class="rail"></span>
+    <div class="meta">
+      <div class="name">{{ cd.name }}{% if cd.photo_only %}<span class="ptag">фотоотчёт</span>{% endif %}</div>
+      <div class="cnt">Принято ОКК: {{ cd.acc }}/{{ cd.total }}</div>
+      {% if cd.caller and cd.state in ('rv','ok') %}<div class="caller">Вызвал ОКК: {{ cd.caller }}</div>{% endif %}
+      {% if cd.state == 'ok' %}<span class="chip">Принято ОКК</span>
+      {% elif cd.state == 'rv' %}<span class="chip wait">Ожидает ОКК</span>
+      {% elif cd.returned %}<span class="chip retc">На доработке</span>
+      {% elif cd.state == 'wk' %}<span class="chip">В работе</span>{% endif %}
+      {% if cd.state != 'no' and cd.since %}<div class="since">статус с {{ cd.since|d }}</div>{% endif %}
+    </div>
+    <svg class="hico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+    <svg class="cv" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+  </summary>
+  <div class="subs">
+    {% if cd.photo_only %}<p class="pnote">Приёмка по фотоотчёту: ОКК проверяет фото, выезд не нужен.</p>{% endif %}
+    {% for w in cd.works %}{% set name, desc, need = TPL[i][1][w.idx] %}{% set ph = pics.get(w.id, []) %}
+    {% set editable = (g.user.role in ('prorab','admin')) and w.status in ('no','wk') %}
+    <div class="w {{ 'okk' if w.status=='ok' }}">
+      <div class="t"><div><b>{{ name }}</b><div class="d">{{ desc }} · {{ {'ok':'Принято','rv':'Ожидает ОКК','wk':'В работе','no':'Не начата'}[w.status] }}</div></div><span class="st {{ w.status }}"></span></div>
+      {% if w.date %}<span class="date"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>{{ w.date|d }}</span>{% endif %}
+      {% if need or ph %}
+      <div class="thumbs">
+        {% for pid in ph %}<div class="thumb"><a href="{{ url_for('photo', pid=pid) }}" target="_blank"><img src="{{ url_for('photo', pid=pid) }}" alt="Фото отчёта" loading="lazy"></a>
+          {% if editable %}<form method="post" action="{{ url_for('photo_delete', pid=pid) }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button aria-label="Удалить фото">×</button></form>{% endif %}</div>{% endfor %}
+        {% if editable %}
+        <form method="post" action="{{ url_for('work_photo', wid=w.id) }}" enctype="multipart/form-data" style="display:contents">
+          <input type="hidden" name="csrf" value="{{ csrf() }}">
+          <label class="addph" aria-label="Добавить фото">+<input type="file" name="photos" accept="image/*" multiple hidden onchange="this.form.submit()"></label>
+        </form>{% endif %}
+      </div>
+      {% if need %}<div class="need">Фото: {{ ph|length }} из {{ need }} обязательных</div>{% endif %}
+      {% endif %}
+      {% if w.ret and w.status == 'wk' %}<div class="ret">Возвращено ОКК: {{ w.ret }}</div>{% endif %}
+      {% if editable %}
+      <div class="acts">
+        {% if w.status == 'no' and not need %}<form method="post" action="{{ url_for('work_action', wid=w.id, action='start') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn ghost">Начать работы</button></form>{% endif %}
+        <form method="post" action="{{ url_for('work_action', wid=w.id, action='send') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn navy" {{ 'disabled' if need and ph|length < need }}>{{ 'Сдать фотоотчёт' if need else 'Вызвать ОКК' }}</button></form>
+      </div>
+      {% endif %}
+      {% if g.user.role in ('okk','admin') and w.status == 'rv' %}
+      <div class="acts">
+        <button class="btn ghost" type="button" onclick="this.closest('.w').querySelector('.retf').classList.toggle('on')">Вернуть</button>
+        <form method="post" action="{{ url_for('work_action', wid=w.id, action='accept') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn green">Принять</button></form>
+      </div>
+      <form class="retf" method="post" action="{{ url_for('work_action', wid=w.id, action='return') }}">
+        <input type="hidden" name="csrf" value="{{ csrf() }}">
+        <textarea name="reason" placeholder="Что исправить" required></textarea>
+        <button class="btn danger full" style="margin-top:6px">Вернуть на доработку</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <details class="hist"><summary>История этапа</summary>
+      {% for e in hist.get(i, []) %}<div class="ev"><i class="{{ e.kind }}"></i><div>{{ e.text }}<small>{{ e.uname or '' }} · {{ e.created|d }} {{ e.created[11:16] }}</small></div></div>
+      {% else %}<p class="small">Событий пока нет.</p>{% endfor %}
+    </details>
+  </div>
+</details>
+{% endfor %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>if(location.hash){const el=document.querySelector(location.hash);if(el&&el.tagName==='DETAILS'){el.open=true;el.scrollIntoView({block:'start'});}}</script>{% endblock %}

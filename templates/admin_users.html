@@ -1,0 +1,25 @@
+{% extends "base.html" %}{% block title %}Сотрудники — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('profile') %}{% include "_back.html" %}{% endwith %}<h1>Сотрудники</h1></header>{% endblock %}
+{% block content %}
+{% if not cs %}<div class="card small">Сначала создайте ЖК в разделе «Объекты», чтобы открыть к нему доступ.</div>{% endif %}
+{% for u in users %}
+<details class="card" {{ 'open' if u.status == 'pending' }}>
+  <summary style="cursor:pointer"><div class="row"><b>{{ u.name }}</b><span class="pill {{ u.status }}">{{ {'pending':'Новая заявка','active':'Активен','blocked':'Заблокирован'}[u.status] }}</span></div>
+    <div class="small">{{ ROLES[u.role] }} · {{ u.phone }}{% if u.company %} · {{ u.company }}{% endif %}</div></summary>
+  {% if u.id != g.user.id %}
+  <form method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="uid" value="{{ u.id }}">
+    <label>Роль</label>
+    <select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == u.role }}>{{ v }}</option>{% endfor %}</select>
+    <label>Доступ к ЖК</label>
+    <div class="cx">{% for c in cs %}<label><input type="checkbox" name="cx" value="{{ c.id }}" {{ 'checked' if c.id in acc.get(u.id, ()) or (u.status=='pending' and cs|length==1) }}>{{ c.name }}</label>{% endfor %}</div>
+    <div class="acts">
+      <button class="btn {{ 'green' if u.status=='pending' else 'navy' }}" name="act" value="{{ 'approve' if u.status=='pending' else 'save' }}">{{ 'Подтвердить' if u.status=='pending' else 'Сохранить' }}</button>
+      {% if u.status == 'blocked' %}<button class="btn ghost" name="act" value="unblock">Разблокировать</button>
+      {% else %}<button class="btn danger" name="act" value="block" onclick="return confirm('Заблокировать {{ u.name }}?')">Заблокировать</button>{% endif %}
+    </div>
+    <button class="btn ghost full" name="act" value="reset" style="margin-top:8px" onclick="return confirm('Сбросить пароль?')">Сбросить пароль</button>
+  </form>
+  {% else %}<p class="small" style="margin-top:8px">Это вы.</p>{% endif %}
+</details>
+{% endfor %}
+{% endblock %}

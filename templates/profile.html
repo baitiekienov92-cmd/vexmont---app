@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Профиль — Vexmont{% endblock %}
+{% block header %}<header><h1>Профиль</h1></header>{% endblock %}
+{% block content %}
+<div class="ava">{{ g.user.name[:1] }}</div>
+<div style="text-align:center;font-weight:700;font-size:18px">{{ g.user.name }}</div>
+<div class="small" style="text-align:center;margin-bottom:16px">{{ ROLES[g.user.role] }}{% if g.user.company %} · {{ g.user.company }}{% endif %}</div>
+<div class="plist">
+  <div><span>Телефон</span><b>{{ g.user.phone }}</b></div>
+  <div><span>Доступно ЖК</span><b>{{ n_c }}</b></div>
+  {% if g.user.role == 'admin' %}
+  <a href="{{ url_for('admin_users') }}">Сотрудники и заявки <span>›</span></a>
+  <a href="{{ url_for('admin_objects') }}">Объекты (ЖК и квартиры) <span>›</span></a>
+  {% endif %}
+</div>
+<details class="card"><summary style="cursor:pointer;font-weight:600">Сменить пароль</summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label>Текущий пароль</label><input type="password" name="old" required>
+    <label>Новый пароль</label><input type="password" name="new" minlength="6" required>
+    <button class="btn navy full" style="margin-top:12px">Сохранить</button></form>
+</details>
+<form method="post" action="{{ url_for('logout') }}" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn danger full">Выйти</button></form>
+{% endblock %}

@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: vexmont-prorab
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vexmont-prorab-db
+          property: connectionString
+databases:
+  - name: vexmont-prorab-db
+    plan: free
+    region: frankfurt

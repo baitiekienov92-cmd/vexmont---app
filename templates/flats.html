@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}{{ c.name }} — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('home') %}{% include "_back.html" %}{% endwith %}<h1>{{ c.name }}</h1>{% include "_hdr_right.html" %}</header>{% endblock %}
+{% block content %}
+<div class="card"><div class="small">{% if c.sub %}{{ c.sub }} · {% endif %}{{ flats|length }} кв. · {{ c.city }}</div>{% with p=tot %}{% include "_two.html" %}{% endwith %}</div>
+<h3>Квартиры</h3>
+<div class="flats">
+{% for f in flats %}
+  <a class="pc" href="{{ url_for('flat', fid=f.id) }}">
+    <div class="t"><b>Кв. {{ f.number }}</b></div><div class="sub">{{ f.kind }}</div>
+    {% with p=f %}{% include "_two.html" %}{% endwith %}
+  </a>
+{% endfor %}
+</div>
+{% endblock %}

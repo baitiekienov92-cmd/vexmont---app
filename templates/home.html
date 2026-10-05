@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% block title %}Квартиры — Vexmont{% endblock %}
+{% block header %}<header><h1>Квартиры</h1>{% include "_hdr_right.html" %}</header>{% endblock %}
+{% block content %}
+{% for c in cards %}
+<a class="pc" href="{{ url_for('flats', cid=c.id) }}">
+  <div class="t"><b>{{ c.name }}</b><svg class="chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></div>
+  <div class="sub">{% if c.sub %}{{ c.sub }} · {% endif %}{{ c.n }} кв. · {{ c.city }}</div>
+  {% with p=c %}{% include "_two.html" %}{% endwith %}
+</a>
+{% else %}
+<div class="empty">
+  {% if g.user.role == 'admin' %}Объектов пока нет.<br><a class="btn navy" style="margin-top:14px" href="{{ url_for('admin_objects') }}">Создать ЖК</a>
+  {% else %}Вам ещё не открыли объекты.<br>Обратитесь к администратору.{% endif %}
+</div>
+{% endfor %}
+{% endblock %}

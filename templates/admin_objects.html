@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% block title %}Объекты — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('profile') %}{% include "_back.html" %}{% endwith %}<h1>Объекты</h1></header>{% endblock %}
+{% block content %}
+<details class="card" {{ 'open' if not cs }}><summary style="cursor:pointer;font-weight:600">+ Новый ЖК</summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="create">
+    <label>Название ЖК</label><input name="name" placeholder="Arena City Balance A" required>
+    <div class="row"><div style="flex:1"><label>Блок / секция</label><input name="sub" placeholder="1 бл."></div><div style="flex:1"><label>Город</label><input name="city" value="Алматы"></div></div>
+    <label>Номера квартир</label><input name="numbers" placeholder="1-42 или 187, 193, 199" required>
+    <label>Тип ремонта</label><select name="kind"><option>типовой</option><option>авторский</option></select>
+    <button class="btn navy full" style="margin-top:12px">Создать</button>
+  </form>
+</details>
+{% for c in cs %}
+<details class="card"><summary style="cursor:pointer"><div class="row"><b>{{ c.name }}</b><span class="small">{{ c.n }} кв.</span></div><div class="small">{{ c.sub }} · {{ c.city }}</div></summary>
+  <form method="post" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="add"><input type="hidden" name="cid" value="{{ c.id }}">
+    <label>Добавить квартиры</label><input name="numbers" placeholder="43-50" required>
+    <select name="kind" style="margin-top:6px"><option>типовой</option><option>авторский</option></select>
+    <button class="btn ghost full" style="margin-top:8px">Добавить</button></form>
+  <form method="post" style="margin-top:8px" onsubmit="return confirm('Удалить ЖК «{{ c.name }}» со всеми данными?')"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="delete"><input type="hidden" name="cid" value="{{ c.id }}">
+    <button class="btn danger full">Удалить ЖК</button></form>
+</details>
+{% endfor %}
+{% endblock %}

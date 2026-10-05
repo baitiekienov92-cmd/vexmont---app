@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Ожидание доступа — Vexmont{% endblock %}
+{% block content %}
+<div class="auth" style="text-align:center">
+  <div class="logo" style="margin:0 auto 16px">V</div>
+  <h1>Заявка отправлена</h1>
+  <p class="small">{{ g.user.name }}, администратор проверит вашу заявку и откроет доступ к объектам. Обычно это занимает несколько часов.</p>
+  <a class="btn ghost full" href="{{ url_for('pending') }}" style="margin-top:16px">Проверить ещё раз</a>
+  <form method="post" action="{{ url_for('logout') }}" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn ghost full">Выйти</button></form>
+</div>
+{% endblock %}

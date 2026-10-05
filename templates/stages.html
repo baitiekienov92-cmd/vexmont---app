@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block title %}Этапы — Vexmont{% endblock %}
+{% block header %}<header><h1>Этапы</h1>{% include "_hdr_right.html" %}</header>{% endblock %}
+{% block content %}
+<h3 id="tasks">{% if g.user.role == 'okk' %}Ожидают проверки ОКК{% elif g.user.role == 'prorab' %}Возвращено на доработку{% else %}Задачи{% endif %} · {{ tasks|length }}</h3>
+{% for w in tasks %}{% set name = TPL[w.stage][1][w.idx][0] %}
+<a class="card" style="display:block" href="{{ url_for('flat', fid=w.flat_id, open=w.stage) }}#s{{ w.stage }}">
+  <div class="row"><b>Кв. {{ w.number }} · {{ w.cname }}</b><span class="chip {{ 'wait' if w.status=='rv' else 'retc' }}">{{ 'Ожидает ОКК' if w.status=='rv' else 'На доработке' }}</span></div>
+  <div class="small">{{ TPL[w.stage][0] }} — {{ name }}{% if w.ret and w.status=='wk' %}: {{ w.ret }}{% endif %}</div>
+  <div class="small">статус с {{ w.date|d }}</div>
+</a>
+{% else %}<div class="card small">Задач нет.</div>{% endfor %}
+
+{% if cs %}
+<h3>Сводка по этапам</h3>
+<div class="chips">{% for c in cs %}<a href="{{ url_for('stages', c=c.id) }}" class="{{ 'on' if c.id==cid }}">{{ c.name }}</a>{% endfor %}</div>
+{% for r in rows %}
+<details class="agg" {{ 'open' if open_st == r.i }}>
+  <summary><div class="row"><b>{{ r.i+1 }}. {{ TPL[r.i][0] }}</b><span class="small">{{ r.o }}/{{ flats|length }}</span></div>
+    <div class="two" style="margin-top:6px;font-size:12px"><span class="o"><i></i>ОКК {{ r.o }}</span><span class="p"><i></i>Прораб {{ r.p }}</span></div>
+    <div class="dbar"><div class="pr" style="width:{{ r.pr }}%"></div><div class="ok" style="width:{{ r.okk }}%"></div></div></summary>
+  <div style="margin-top:8px">
+  {% for f in flats %}{% set s = f.states[r.i] %}
+    <a class="linkrow" href="{{ url_for('flat', fid=f.id, open=r.i) }}#s{{ r.i }}"><span>Кв. {{ f.number }}</span>
+      <span class="small" style="color:{{ 'var(--green)' if s=='ok' else '#C26A00' if s=='rv' else 'var(--navy)' if s=='wk' else 'var(--mute)' }}">{{ {'ok':'Принято ОКК','rv':'Ожидает ОКК','wk':'В работе','no':'Не начат'}[s] }}</span></a>
+  {% endfor %}</div>
+</details>
+{% endfor %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block title %}Уведомления — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('home') %}{% include "_back.html" %}{% endwith %}<h1>Уведомления</h1></header>{% endblock %}
+{% block content %}
+<div class="card">
+{% for e in evs %}
+  <a class="ev {{ 'new' if e.created > seen and e.user_id != g.user.id }}" href="{{ url_for('flat', fid=e.flat_id, open=e.stage) }}#s{{ e.stage }}">
+    <i class="{{ e.kind }}"></i><div>Кв. {{ e.number }} · {{ e.cname }}: {{ e.text }}<small>{{ e.uname or '' }} · {{ e.created|d }} {{ e.created[11:16] }}</small></div></a>
+{% else %}<p class="small">Уведомлений пока нет.</p>{% endfor %}
+</div>
+{% endblock %}
