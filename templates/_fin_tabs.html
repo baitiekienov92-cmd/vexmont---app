@@ -1,0 +1,5 @@
+<div class="chips">
+  {% for k, l in [('costs','Расходы'),('planfact','План / факт'),('limits','Лимиты')] %}<a href="{{ url_for('finance', t=k, c=cid) }}" class="{{ 'on' if t==k }}">{{ l }}</a>{% endfor %}
+  <a href="{{ url_for('schedule_page', c=cid) }}" class="{{ 'on' if t=='schedule' }}">График</a>
+  <a href="{{ url_for('requests_page') }}" class="{{ 'on' if t=='requests' }}">Заявки{% if newreq %} · {{ newreq }}{% endif %}</a>
+</div>

@@ -1,2 +1,2 @@
-<a class="ychip" href="{{ url_for('stages') }}#tasks" aria-label="Задачи"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>{{ tasks_n or 0 }}</a>
+{% if g.user.role != 'client' %}<a class="ychip" href="{{ url_for('stages') }}#tasks" aria-label="Задачи"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9"/><path d="M18 3v4h-4M6 21v-4h4"/></svg>{{ tasks_n or 0 }}</a>{% endif %}
 <a class="icb" href="{{ url_for('notifications') }}" aria-label="Уведомления"><svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>{% if unread %}<span class="badge-n">{{ unread if unread < 100 else '99+' }}</span>{% endif %}</a>

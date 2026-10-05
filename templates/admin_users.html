@@ -9,9 +9,17 @@
   {% if u.id != g.user.id %}
   <form method="post" style="margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="uid" value="{{ u.id }}">
     <label>Роль</label>
-    <select name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == u.role }}>{{ v }}</option>{% endfor %}</select>
-    <label>Доступ к ЖК</label>
-    <div class="cx">{% for c in cs %}<label><input type="checkbox" name="cx" value="{{ c.id }}" {{ 'checked' if c.id in acc.get(u.id, ()) or (u.status=='pending' and cs|length==1) }}>{{ c.name }}</label>{% endfor %}</div>
+    <select name="role" onchange="const f=this.form;f.querySelector('.acc-obj').hidden=this.value==='client';f.querySelector('.acc-flat').hidden=this.value!=='client'">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if k == u.role }}>{{ v }}</option>{% endfor %}</select>
+    <div class="acc-obj" {{ 'hidden' if u.role == 'client' }}>
+      <label>Доступ к ЖК</label>
+      <div class="cx">{% for c in cs %}<label><input type="checkbox" name="cx" value="{{ c.id }}" {{ 'checked' if c.id in acc.get(u.id, ()) or (u.status=='pending' and cs|length==1) }}>{{ c.name }}</label>{% endfor %}</div>
+    </div>
+    <div class="acc-flat" {{ 'hidden' if u.role != 'client' }}>
+      <label>Квартиры заказчика (только просмотр)</label>
+      {% for c in cs %}<div class="small" style="margin-top:6px">{{ c.name }}</div>
+      <div class="cx">{% for f in allflats.get(c.id, []) %}<label><input type="checkbox" name="fx" value="{{ f.id }}" {{ 'checked' if f.id in facc.get(u.id, ()) }}>{{ f.number }}</label>{% endfor %}</div>{% endfor %}
+    </div>
+    <div class="cx"><label><input type="checkbox" name="sched" value="1" {{ 'checked' if u.can_sched }}>Может вести график работ и выплат</label></div>
     <div class="acts">
       <button class="btn {{ 'green' if u.status=='pending' else 'navy' }}" name="act" value="{{ 'approve' if u.status=='pending' else 'save' }}">{{ 'Подтвердить' if u.status=='pending' else 'Сохранить' }}</button>
       {% if u.status == 'blocked' %}<button class="btn ghost" name="act" value="unblock">Разблокировать</button>

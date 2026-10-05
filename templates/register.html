@@ -9,13 +9,10 @@
     <label>Имя и фамилия</label><input name="name" value="{{ request.form.name }}" autocomplete="name" required>
     <label>Телефон</label><input name="phone" type="tel" inputmode="tel" value="{{ request.form.phone }}" placeholder="+7 7__ ___ __ __" autocomplete="tel" required>
     <label>Компания (необязательно)</label><input name="company" value="{{ request.form.company }}">
-    <label>Роль</label>
-    <div class="roles">
-      {% set r = request.form.role or 'prorab' %}
-      <input type="radio" name="role" id="r1" value="prorab" {{ 'checked' if r=='prorab' }}><label for="r1">Прораб</label>
-      <input type="radio" name="role" id="r2" value="okk" {{ 'checked' if r=='okk' }}><label for="r2">ОКК</label>
-      <input type="radio" name="role" id="r3" value="client" {{ 'checked' if r=='client' }}><label for="r3">Заказчик</label>
-    </div>
+    <label>Должность</label>
+    <select name="role" required>
+      {% for k, v in ROLES.items() if k != 'admin' %}<option value="{{ k }}" {{ 'selected' if (request.form.role or 'prorab') == k }}>{{ v }}</option>{% endfor %}
+    </select>
     <label>Пароль (минимум 6 символов)</label><input name="password" type="password" autocomplete="new-password" minlength="6" required>
     <button class="btn navy full" style="margin-top:16px">Зарегистрироваться</button>
   </form>

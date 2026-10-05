@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% block title %}Заявки — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('finance') if g.user.role=='admin' else url_for('profile') %}{% include "_back.html" %}{% endwith %}<h1>Заявки</h1></header>{% endblock %}
+{% block content %}
+{% if g.user.role == 'admin' %}{% set t='requests' %}{% set cid=None %}{% include "_fin_tabs.html" %}{% endif %}
+<details class="card" id="new" {{ 'open' if pre_c or not reqs }}><summary style="cursor:pointer;font-weight:600">+ Создать заявку</summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label>Тип</label>
+    <div class="roles" style="grid-template-columns:1fr 1fr">
+      <input type="radio" name="kind" id="k1" value="pay" checked><label for="k1">На выплату</label>
+      <input type="radio" name="kind" id="k2" value="buy"><label for="k2">На закуп материала</label>
+    </div>
+    <label>ЖК (блок)</label>
+    <select name="complex_id" id="rc" required onchange="fillFlats()">{% for c in cs %}<option value="{{ c.id }}" {{ 'selected' if c.id==pre_c }}>{{ c.name }}{% if c.sub %} · {{ c.sub }}{% endif %}</option>{% endfor %}</select>
+    <label>Квартира</label><select name="flat_id" id="rf"></select>
+    <label>Категория</label><select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <div class="grid2"><div><label>Сумма, ₸</label><input name="amount" inputmode="decimal" required></div><div><label>Кому / поставщик</label><input name="party"></div></div>
+    <label>Описание</label><textarea name="descr" rows="2" placeholder="Что оплачиваем или закупаем"></textarea>
+    <button class="btn navy full" style="margin-top:12px">Отправить ген. директору</button>
+  </form>
+</details>
+<h3>{{ 'Все заявки' if g.user.role=='admin' else 'Мои заявки' }}</h3>
+{% for r in reqs %}
+<div class="card">
+  <div class="row"><b>{{ r.amount|money }}</b><span class="pill {{ r.status }}">{{ {'new':'Новая','approved':'Одобрена','rejected':'Отклонена','paid':'Оплачена'}[r.status] }}</span></div>
+  <div class="small">{{ 'Выплата' if r.kind=='pay' else 'Закуп' }} · {{ CATS[r.category] }} · {{ r.cname }}{% if r.number %}, кв. {{ r.number }}{% endif %}</div>
+  {% if r.party or r.descr %}<div style="font-size:14px;margin-top:4px">{{ r.party }}{% if r.party and r.descr %} — {% endif %}{{ r.descr }}</div>{% endif %}
+  <div class="small">{{ r.uname }} · {{ r.created|d }}</div>
+  {% if g.user.role == 'admin' and r.status in ('new','approved') %}
+  <div class="acts">
+    {% if r.status == 'new' %}<form method="post" action="{{ url_for('request_act', rid=r.id, act='reject') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn danger">Отклонить</button></form>
+    <form method="post" action="{{ url_for('request_act', rid=r.id, act='approve') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn navy">Одобрить</button></form>{% endif %}
+    <form method="post" action="{{ url_for('request_act', rid=r.id, act='paid') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn green">Оплачено</button></form>
+  </div>{% endif %}
+</div>
+{% else %}<div class="card small">Заявок пока нет.</div>{% endfor %}
+{% endblock %}
+{% block scripts %}<script>
+const FL = {{ flats_by|tojson }}; const PF = {{ (pre_f or 0)|tojson }};
+function fillFlats(){const c=document.getElementById('rc').value, s=document.getElementById('rf');
+  s.innerHTML='<option value="">Весь блок</option>'+(FL[c]||[]).map(f=>`<option value="${f.id}" ${f.id===PF?'selected':''}>Кв. ${f.number}</option>`).join('');}
+if(document.getElementById('rc')) fillFlats();
+</script>{% endblock %}

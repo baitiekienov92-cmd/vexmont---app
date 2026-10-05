@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% block title %}Юр. отдел — Vexmont{% endblock %}
+{% block header %}<header><h1>Юр. отдел</h1></header>{% endblock %}
+{% block content %}
+<div class="chips">{% for k, v in CONTRACT_KINDS.items() %}<a href="{{ url_for('legal', k=k) }}" class="{{ 'on' if k==kind }}">{{ v }}</a>{% endfor %}</div>
+{% if g.user.role in ('admin','lawyer') %}
+<details class="card"><summary style="cursor:pointer;font-weight:600">+ Новый договор: {{ CONTRACT_KINDS[kind]|lower }}</summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label>Название</label><input name="title" placeholder="Договор подряда на отделку" required>
+    <label>{{ {'client':'Заказчик','contractor':'Подрядчик','supplier':'Поставщик'}[kind] }}</label><input name="party">
+    <div class="grid2"><div><label>Номер</label><input name="number"></div><div><label>Дата</label><input type="date" name="cdate"></div></div>
+    <div class="grid2"><div><label>Сумма, ₸</label><input name="amount" inputmode="decimal"></div><div><label>ЖК</label><select name="complex_id"><option value="">—</option>{% for c in cs %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div></div>
+    <label>Примечание</label><textarea name="note" rows="2"></textarea>
+    <button class="btn navy full" style="margin-top:12px">Создать</button></form>
+</details>{% endif %}
+{% for k in ks %}
+<a class="card" style="display:block" href="{{ url_for('contract', kid=k.id) }}">
+  <div class="row"><b>{{ k.title }}</b><span class="small">{{ k.nfiles }} файл.</span></div>
+  <div class="small">{{ k.party }}{% if k.number %} · № {{ k.number }}{% endif %}{% if k.cdate %} от {{ k.cdate|d }}{% endif %}{% if k.cname %} · {{ k.cname }}{% endif %}</div>
+  {% if k.amount %}<div style="font-weight:600;margin-top:2px">{{ k.amount|money }}</div>{% endif %}
+</a>
+{% else %}<div class="card small">{{ 'Договоров пока нет.' if g.user.role=='admin' else 'Нет договоров, к которым вам открыт доступ. Доступ открывает генеральный директор.' }}</div>{% endfor %}
+{% endblock %}

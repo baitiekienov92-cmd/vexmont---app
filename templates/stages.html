@@ -10,6 +10,15 @@
 </a>
 {% else %}<div class="card small">Задач нет.</div>{% endfor %}
 
+{% if measures %}
+<h3>Замеры в работе · {{ measures|length }}</h3>
+{% for m in measures %}
+<a class="card" style="display:block" href="{{ url_for('flat', fid=m.flat_id) }}#measures">
+  <div class="row"><b>{{ m.kind }} · кв. {{ m.number }}</b><span class="pill {{ m.status }}">{{ {'new':'Вызван','scheduled':'Назначен'}[m.status] }}</span></div>
+  <div class="small">{{ m.cname }}{% if m.status=='scheduled' and m.sched_date %} · на {{ m.sched_date|d }}{% elif m.want_date %} · желательно {{ m.want_date|d }}{% endif %}</div>
+</a>{% endfor %}
+{% endif %}
+
 {% if cs %}
 <h3>Сводка по этапам</h3>
 <div class="chips">{% for c in cs %}<a href="{{ url_for('stages', c=c.id) }}" class="{{ 'on' if c.id==cid }}">{{ c.name }}</a>{% endfor %}</div>

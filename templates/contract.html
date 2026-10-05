@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% block title %}{{ k.title }} — Vexmont{% endblock %}
+{% block header %}<header>{% with href=url_for('legal', k=k.kind) %}{% include "_back.html" %}{% endwith %}<h1>Договор</h1></header>{% endblock %}
+{% block content %}
+<div class="card"><div class="small">{{ CONTRACT_KINDS[k.kind] }}</div><b style="font-size:18px">{{ k.title }}</b>
+  <div class="small" style="margin-top:4px">{{ k.party }}{% if k.number %} · № {{ k.number }}{% endif %}{% if k.cdate %} от {{ k.cdate|d }}{% endif %}{% if c %} · {{ c.name }}{% endif %}</div>
+  {% if k.amount %}<div style="font-weight:700;margin-top:4px">{{ k.amount|money }}</div>{% endif %}
+  {% if k.note %}<p style="font-size:14px">{{ k.note }}</p>{% endif %}</div>
+<h3>Файлы</h3>
+<div class="card">{% for f in files %}<div class="fileln"><a href="{{ url_for('contract_file', fid=f.id) }}" target="_blank" style="color:var(--navy);font-weight:600">{{ f.name }}</a><span class="small">{{ f.created|d }}</span></div>
+{% else %}<p class="small">Файлов пока нет.</p>{% endfor %}
+{% if g.user.role in ('admin','lawyer') %}<form method="post" enctype="multipart/form-data" style="margin-top:10px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="upload">
+  <input type="file" name="files" multiple accept=".pdf,.doc,.docx,image/*" required><button class="btn ghost full" style="margin-top:8px">Загрузить</button></form>{% endif %}</div>
+{% if g.user.role == 'admin' %}
+<h3>Кому открыт доступ</h3>
+<form method="post" class="card"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="access">
+  {% for p in people %}<label style="display:flex;gap:8px;align-items:center;color:var(--ink);font-size:15px;margin:8px 0"><input type="checkbox" name="uid" value="{{ p.id }}" style="width:auto" {{ 'checked' if p.id in has }}>{{ p.name }} <span class="small">· {{ ROLES[p.role] }}</span></label>
+  {% else %}<p class="small">Нет активных сотрудников юр. отдела, бухгалтерии или директора по развитию.</p>{% endfor %}
+  <button class="btn navy full" style="margin-top:6px">Сохранить доступ</button></form>
+<form method="post" style="margin-top:10px" onsubmit="return confirm('Удалить договор и файлы?')"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="delete"><button class="btn danger full">Удалить договор</button></form>
+{% endif %}
+{% endblock %}

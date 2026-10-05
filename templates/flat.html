@@ -19,6 +19,30 @@
   <div class="bar18">{% for s in st.states %}<i class="{{ s if s!='no' }}"></i>{% endfor %}</div>
   <div class="small">1 этап = 5,56%. Принятые ОКК этапы уходят вниз списка.</div>
 </div>
+{% if g.user.role == 'client' %}
+<div class="ro">Режим просмотра: этапы, проценты и фотоотчёты по вашей квартире.</div>
+{% else %}
+<details class="card" id="measures" {{ 'open' if measures|selectattr('status','ne','done')|list }}>
+  <summary style="cursor:pointer;font-weight:600">Замеры {% set act = measures|selectattr('status','ne','done')|list %}{% if act %}<span class="pill new" style="margin-left:6px">{{ act|length }}</span>{% endif %}</summary>
+  <form method="post" action="{{ url_for('measure_new', fid=f.id) }}" style="margin-top:8px">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label>Кого вызвать на замер</label>
+    <select name="kind">{% for k in MEASURE_KINDS %}<option>{{ k }}</option>{% endfor %}</select>
+    <div class="grid2"><div><label>Желаемая дата</label><input type="date" name="want_date"></div><div><label>Комментарий</label><input name="comment" placeholder="Кафель закончен"></div></div>
+    <button class="btn navy full" style="margin-top:10px">Вызвать на замер</button>
+  </form>
+  {% for m in measures %}
+  <div class="mrow"><div><b>{{ m.kind }}</b> <span class="pill {{ m.status }}">{{ {'new':'Вызван','scheduled':'Назначен','done':'Выполнен'}[m.status] }}</span>
+    <div class="small">{% if m.status=='scheduled' and m.sched_date %}На {{ m.sched_date|d }} · {% elif m.want_date %}Желательно {{ m.want_date|d }} · {% endif %}{{ m.uname or '' }}{% if m.comment %} · {{ m.comment }}{% endif %}</div></div>
+    {% if g.user.role in MEASURE_ROLES and m.status != 'done' %}
+    <div style="display:flex;flex-direction:column;gap:6px;min-width:130px">
+      <form method="post" action="{{ url_for('measure_act', mid=m.id, act='schedule') }}" style="display:flex;gap:4px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="date" name="sched_date" required style="padding:6px;font-size:13px"><button class="btn ghost" style="padding:6px 8px">ОК</button></form>
+      <form method="post" action="{{ url_for('measure_act', mid=m.id, act='done') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn green" style="width:100%;padding:7px">Выполнен</button></form>
+    </div>{% endif %}
+  </div>{% endfor %}
+</details>
+<a class="btn ghost full" style="margin-bottom:10px" href="{{ url_for('requests_page', c=c.id, f=f.id) }}#new">Заявка на выплату или закуп</a>
+{% endif %}
 
 {% for cd in cards %}{% set i = cd.i %}
 <details class="stage {{ cd.state }}" id="s{{ i }}" {{ 'open' if open_st == i }}>
@@ -39,12 +63,12 @@
   </summary>
   <div class="subs">
     {% if cd.photo_only %}<p class="pnote">Приёмка по фотоотчёту: ОКК проверяет фото, выезд не нужен.</p>{% endif %}
-    {% for w in cd.works %}{% set name, desc, need = TPL[i][1][w.idx] %}{% set ph = pics.get(w.id, []) %}
-    {% set editable = (g.user.role in ('prorab','admin')) and w.status in ('no','wk') %}
+    {% for w in cd.works %}{% set name, desc, need, owner = TPL[i][1][w.idx] %}{% set ph = pics.get(w.id, []) %}
+    {% set editable = photo_editable(w) %}
     <div class="w {{ 'okk' if w.status=='ok' }}">
       <div class="t"><div><b>{{ name }}</b><div class="d">{{ desc }} · {{ {'ok':'Принято','rv':'Ожидает ОКК','wk':'В работе','no':'Не начата'}[w.status] }}</div></div><span class="st {{ w.status }}"></span></div>
       {% if w.date %}<span class="date"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>{{ w.date|d }}</span>{% endif %}
-      {% if need or ph %}
+      {% if need or ph or editable %}
       <div class="thumbs">
         {% for pid in ph %}<div class="thumb"><a href="{{ url_for('photo', pid=pid) }}" target="_blank"><img src="{{ url_for('photo', pid=pid) }}" alt="Фото отчёта" loading="lazy"></a>
           {% if editable %}<form method="post" action="{{ url_for('photo_delete', pid=pid) }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button aria-label="Удалить фото">×</button></form>{% endif %}</div>{% endfor %}
@@ -57,13 +81,15 @@
       {% if need %}<div class="need">Фото: {{ ph|length }} из {{ need }} обязательных</div>{% endif %}
       {% endif %}
       {% if w.ret and w.status == 'wk' %}<div class="ret">Возвращено ОКК: {{ w.ret }}</div>{% endif %}
-      {% if editable %}
+      {% if editable and owner == 'okk' %}
+      <div class="acts"><form method="post" action="{{ url_for('work_action', wid=w.id, action='send') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn green" {{ 'disabled' if ph|length < need }}>Загрузить акт и закрыть этап</button></form></div>
+      {% elif editable %}
       <div class="acts">
         {% if w.status == 'no' and not need %}<form method="post" action="{{ url_for('work_action', wid=w.id, action='start') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn ghost">Начать работы</button></form>{% endif %}
         <form method="post" action="{{ url_for('work_action', wid=w.id, action='send') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn navy" {{ 'disabled' if need and ph|length < need }}>{{ 'Сдать фотоотчёт' if need else 'Вызвать ОКК' }}</button></form>
       </div>
       {% endif %}
-      {% if g.user.role in ('okk','admin') and w.status == 'rv' %}
+      {% if g.user.role in OKK_ROLES and w.status == 'rv' and owner == 'pr' %}
       <div class="acts">
         <button class="btn ghost" type="button" onclick="this.closest('.w').querySelector('.retf').classList.toggle('on')">Вернуть</button>
         <form method="post" action="{{ url_for('work_action', wid=w.id, action='accept') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn green">Принять</button></form>

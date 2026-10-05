@@ -31,6 +31,39 @@ CREATE TABLE IF NOT EXISTS photos(
 CREATE TABLE IF NOT EXISTS events(
   id {PK}, flat_id INTEGER NOT NULL REFERENCES flats(id) ON DELETE CASCADE,
   stage INTEGER, kind TEXT NOT NULL, text TEXT NOT NULL, user_id INTEGER, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS flat_access(
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  flat_id INTEGER NOT NULL REFERENCES flats(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id, flat_id));
+CREATE TABLE IF NOT EXISTS measures(
+  id {PK}, flat_id INTEGER NOT NULL REFERENCES flats(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL, want_date TEXT DEFAULT '', comment TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new', sched_date TEXT DEFAULT '', user_id INTEGER, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS contracts(
+  id {PK}, kind TEXT NOT NULL, title TEXT NOT NULL, party TEXT DEFAULT '', number TEXT DEFAULT '',
+  cdate TEXT DEFAULT '', amount REAL DEFAULT 0, complex_id INTEGER, note TEXT DEFAULT '',
+  user_id INTEGER, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS contract_files(
+  id {PK}, contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, mime TEXT NOT NULL, data {BLOB} NOT NULL, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS contract_access(
+  contract_id INTEGER NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY(contract_id, user_id));
+CREATE TABLE IF NOT EXISTS requests(
+  id {PK}, kind TEXT NOT NULL, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
+  flat_id INTEGER, category TEXT NOT NULL, amount REAL NOT NULL, party TEXT DEFAULT '', descr TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new', user_id INTEGER, created TEXT NOT NULL, decided TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS schedule(
+  id {PK}, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
+  flat_id INTEGER, kind TEXT NOT NULL, title TEXT NOT NULL, party TEXT DEFAULT '', day TEXT NOT NULL,
+  amount REAL DEFAULT 0, category TEXT DEFAULT 'works', done INTEGER DEFAULT 0, user_id INTEGER, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS plans(
+  id {PK}, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
+  flat_id INTEGER, category TEXT NOT NULL, amount REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS limits(
+  id {PK}, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
+  flat_id INTEGER, rough REAL DEFAULT 0, finish REAL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_works_flat ON works(flat_id);
 CREATE INDEX IF NOT EXISTS ix_events_flat ON events(flat_id);
 CREATE INDEX IF NOT EXISTS ix_photos_work ON photos(work_id);
@@ -95,6 +128,15 @@ def init():
     cur = con.cursor()
     for stmt in [s.strip() for s in ddl.split(";") if s.strip()]:
         cur.execute(stmt)
+    con.commit()
+    # миграции для уже работающей базы
+    for table, col, typ in (("users", "can_sched", "INTEGER DEFAULT 0"), ("works", "sent_by", "INTEGER")):
+        if PG:
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
+        else:
+            cols = [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
+            if col not in cols:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
     con.commit()
     con.close()
 

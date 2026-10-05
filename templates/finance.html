@@ -1,0 +1,63 @@
+{% extends "base.html" %}{% block title %}Финансы — Vexmont{% endblock %}
+{% block header %}<header><h1>Финансы</h1></header>{% endblock %}
+{% block content %}
+{% include "_fin_tabs.html" %}
+{% if not cs %}<div class="card small">Сначала создайте ЖК в Профиль → Объекты.</div>{% else %}
+<div class="chips">{% for c in cs %}<a href="{{ url_for('finance', t=t, c=c.id) }}" class="{{ 'on' if c.id==cid }}">{{ c.name }}{% if c.sub %} · {{ c.sub }}{% endif %}</a>{% endfor %}</div>
+
+{% if t == 'costs' %}
+<h3>Расходы по блокам</h3>
+<div class="tbl"><table><tr><th>ЖК / блок</th><th class="n">План</th><th class="n">Факт</th><th class="n">На 1 кв.</th></tr>
+{% for o in overview %}<tr><td><a href="{{ url_for('finance', t='costs', c=o.id) }}" style="color:var(--navy);font-weight:600">{{ o.name }}</a><div class="small">{{ o.sub }} · {{ o.n }} кв.</div></td>
+<td class="n">{{ o.plan|money }}</td><td class="n {{ 'neg' if o.plan and o.fact > o.plan }}">{{ o.fact|money }}</td><td class="n">{{ (o.fact / o.n if o.n else 0)|money }}</td></tr>{% endfor %}</table></div>
+<h3>{{ d.c.name }}: по категориям</h3>
+<div class="kpi"><div><span class="small">Факт</span><b>{{ d.fact_total|money }}</b></div><div class="{{ 'red' if d.plan_total and d.fact_total > d.plan_total else 'grn' }}"><span class="small">План</span><b>{{ d.plan_total|money }}</b></div></div>
+<div class="tbl"><table><tr><th>Категория</th><th class="n">Факт</th></tr>
+{% for k, v in CATS.items() %}<tr><td>{{ v }}</td><td class="n">{{ d.fact_cat.get(k, 0)|money }}</td></tr>{% endfor %}</table></div>
+<h3>{{ d.c.name }}: по квартирам</h3>
+<div class="tbl"><table><tr><th>Кв.</th>{% for k, v in CATS.items() %}<th class="n">{{ v.split()[0] }}</th>{% endfor %}<th class="n">Итого</th></tr>
+<tr><td class="small">на блок</td>{% for k in CATS %}<td class="n">{{ d.fact_flat_cat.get((0,k),0)|money }}</td>{% endfor %}<td class="n">{{ d.fact_flat.get(0,0)|money }}</td></tr>
+{% for f in d.flats %}<tr><td>{{ f.number }}</td>{% for k in CATS %}<td class="n">{{ d.fact_flat_cat.get((f.id,k),0)|money }}</td>{% endfor %}<td class="n"><b>{{ d.fact_flat.get(f.id,0)|money }}</b></td></tr>{% endfor %}</table></div>
+<p class="small">Факт считается автоматически: оплаченные заявки и оплаченные строки графика выплат.</p>
+
+{% elif t == 'planfact' %}
+<h3>План / факт: {{ d.c.name }}</h3>
+<div class="tbl"><table><tr><th>Категория</th><th class="n">План</th><th class="n">Факт</th><th class="n">Отклонение</th></tr>
+{% for k, v in CATS.items() %}{% set p=d.plan_cat.get(k,0) %}{% set fct=d.fact_cat.get(k,0) %}
+<tr><td>{{ v }}</td><td class="n">{{ p|money }}</td><td class="n">{{ fct|money }}</td><td class="n {{ 'neg' if fct>p else 'pos' }}">{{ (p-fct)|money }}</td></tr>{% endfor %}
+<tr><td><b>Итого</b></td><td class="n"><b>{{ d.plan_total|money }}</b></td><td class="n"><b>{{ d.fact_total|money }}</b></td><td class="n {{ 'neg' if d.fact_total>d.plan_total else 'pos' }}"><b>{{ (d.plan_total-d.fact_total)|money }}</b></td></tr></table></div>
+<h3>По квартирам</h3>
+<div class="tbl"><table><tr><th>Кв.</th><th class="n">План</th><th class="n">Факт</th><th class="n">Остаток</th></tr>
+{% for f in d.flats %}{% set p = namespace(v=0) %}{% for k in CATS %}{% set p.v = p.v + d.plan_flat_cat.get((f.id,k),0) %}{% endfor %}{% set fct=d.fact_flat.get(f.id,0) %}
+<tr><td>{{ f.number }}</td><td class="n">{{ p.v|money }}</td><td class="n">{{ fct|money }}</td><td class="n {{ 'neg' if fct>p.v else '' }}">{{ (p.v-fct)|money }}</td></tr>{% endfor %}</table></div>
+<details class="card" open><summary style="cursor:pointer;font-weight:600">Загрузить план</summary>
+  <form method="post" action="{{ url_for('finance_plan') }}" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="cid" value="{{ cid }}">
+    <label>Excel с планом (заменит весь план блока)</label><input type="file" name="xlsx" accept=".xlsx" required>
+    <button class="btn navy full" style="margin-top:8px">Загрузить</button></form>
+  <a class="btn ghost full" style="margin-top:8px" href="{{ url_for('plan_template', c=cid) }}">Скачать шаблон Excel</a>
+  <form method="post" action="{{ url_for('finance_plan') }}" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="cid" value="{{ cid }}">
+    <label>Или одну строку вручную</label>
+    <div class="grid2"><select name="flat_id"><option value="">Весь блок</option>{% for f in d.flats %}<option value="{{ f.id }}">Кв. {{ f.number }}</option>{% endfor %}</select>
+      <select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <input name="amount" placeholder="Сумма плана, ₸" inputmode="decimal" style="margin-top:8px" required>
+    <button class="btn ghost full" style="margin-top:8px">Сохранить строку</button></form>
+</details>
+
+{% elif t == 'limits' %}
+<h3>Лимиты: {{ d.c.name }}</h3>
+{% macro lim(label, key, fid) %}{% set L = d.limits.get(key) %}
+<div class="card"><b>{{ label }}</b>
+  {% for cat in ('rough','finish') %}{% set lv = L[cat] if L else 0 %}
+  {% set used = d.fact_cat.get(cat,0) if key==0 else d.fact_flat_cat.get((key,cat),0) %}
+  <div class="row" style="margin-top:8px"><span class="small">{{ CATS[cat] }}</span><span class="small {{ 'neg' if lv and used>lv }}">{{ used|money }} / {{ lv|money if lv else 'нет лимита' }}</span></div>
+  {% if lv %}<div class="lbar"><i class="{{ 'over' if used>lv }}" style="width:{{ [used*100/lv,100]|min }}%"></i></div>{% endif %}
+  {% endfor %}
+  <form method="post" action="{{ url_for('finance_limits') }}" style="margin-top:8px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="cid" value="{{ cid }}"><input type="hidden" name="flat_id" value="{{ fid or '' }}">
+    <div class="grid2"><input name="rough" placeholder="Черновые, ₸" value="{{ (L.rough|int) if L and L.rough else '' }}" inputmode="decimal"><input name="finish" placeholder="Чистовые, ₸" value="{{ (L.finish|int) if L and L.finish else '' }}" inputmode="decimal"></div>
+    <button class="btn ghost full" style="margin-top:6px">Сохранить лимит</button></form>
+</div>{% endmacro %}
+{{ lim('Весь блок', 0, None) }}
+{% for f in d.flats %}{{ lim('Кв. ' ~ f.number, f.id, f.id) }}{% endfor %}
+{% endif %}
+{% endif %}
+{% endblock %}

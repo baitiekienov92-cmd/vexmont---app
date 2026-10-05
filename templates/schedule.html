@@ -1,0 +1,32 @@
+{% extends "base.html" %}{% block title %}График — Vexmont{% endblock %}
+{% block header %}<header>{% if g.user.role=='admin' %}{% with href=url_for('finance') %}{% include "_back.html" %}{% endwith %}{% endif %}<h1>График работ и выплат</h1></header>{% endblock %}
+{% block content %}
+{% if g.user.role == 'admin' %}{% set t='schedule' %}{% include "_fin_tabs.html" %}{% endif %}
+<div class="chips">{% for c in cs %}<a href="{{ url_for('schedule_page', c=c.id) }}" class="{{ 'on' if c.id==cid }}">{{ c.name }}{% if c.sub %} · {{ c.sub }}{% endif %}</a>{% endfor %}</div>
+{% if cid %}
+<div class="kpi">
+  <div class="red"><span class="small">Остаток к оплате</span><b>{{ tot.pay_left|money }}</b></div>
+  <div class="red"><span class="small">Остаток по работе</span><b>{{ tot.work_left|money }}</b></div>
+  <div><span class="small">Переходящий (просрочено)</span><b>{{ tot.carry|money }}</b></div>
+  <div class="grn"><span class="small">Оплачено</span><b>{{ (tot.pay_all - tot.pay_left)|money }}</b></div>
+</div>
+<div class="tbl"><table><tr><th>Число</th><th>Что</th><th class="n">Сумма / статус</th></tr>
+{% for r in rows %}<tr>
+  <td>{{ r.day|d }}{% if r.carry %}<span class="carry">переходит</span>{% endif %}</td>
+  <td><b>{{ r.title }}</b><div class="small">{{ 'Работа' if r.kind=='work' else 'Выплата' }}{% if r.party %} · {{ r.party }}{% endif %}{% if r.number %} · кв. {{ r.number }}{% endif %}</div></td>
+  <td class="n">{{ r.amount|money }}<form method="post" style="margin-top:6px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="sid" value="{{ r.id }}"><input type="hidden" name="c" value="{{ cid }}"><input type="hidden" name="act" value="toggle">
+    <button class="tog {{ 'on' if r.done else 'off' }}">{% if r.kind=='pay' %}{{ 'Оплачено' if r.done else 'Не оплачено' }}{% else %}{{ 'Выполнено' if r.done else 'Не выполнено' }}{% endif %}</button></form></td>
+</tr>{% else %}<tr><td colspan="3" class="small">Строк пока нет.</td></tr>{% endfor %}</table></div>
+<details class="card" {{ 'open' if not rows }}><summary style="cursor:pointer;font-weight:600">+ Добавить в график</summary>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="create"><input type="hidden" name="complex_id" value="{{ cid }}"><input type="hidden" name="c" value="{{ cid }}">
+    <div class="roles" style="grid-template-columns:1fr 1fr;margin-top:8px">
+      <input type="radio" name="kind" id="s1" value="pay" checked><label for="s1">Выплата</label>
+      <input type="radio" name="kind" id="s2" value="work"><label for="s2">Работа</label></div>
+    <label>Что</label><input name="title" placeholder="Аванс плиточнику" required>
+    <div class="grid2"><div><label>Число</label><input type="date" name="day" value="{{ today }}" required></div><div><label>Сумма, ₸</label><input name="amount" inputmode="decimal"></div></div>
+    <div class="grid2"><div><label>Кому</label><input name="party"></div><div><label>Квартира</label><select name="flat_id"><option value="">Весь блок</option>{% for f in flats %}<option value="{{ f.id }}">Кв. {{ f.number }}</option>{% endfor %}</select></div></div>
+    <label>Категория (для факта расходов)</label><select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}" {{ 'selected' if k=='works' }}>{{ v }}</option>{% endfor %}</select>
+    <button class="btn navy full" style="margin-top:12px">Добавить</button></form>
+</details>
+{% else %}<div class="card small">Нет доступных ЖК.</div>{% endif %}
+{% endblock %}
