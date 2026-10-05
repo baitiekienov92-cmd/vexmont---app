@@ -1,31 +1,41 @@
 {% extends "base.html" %}{% block title %}График — Vexmont{% endblock %}
+{% block scripts %}<script>
+const SUB={{ SUBCATS|tojson }};
+function fillSub(a,b){document.getElementById(b).innerHTML=(SUB[document.getElementById(a).value]||[]).map(x=>`<option>${x}</option>`).join("");}
+function setCat(k){const s=document.getElementById("scat");if(!s)return;const cur=s.value;s.value=k==="mat"?(cur.startsWith("finish")?"finish_mat":"rough_mat"):(cur.startsWith("finish")?"finish_works":"rough_works");fillSub("scat","ssub");}
+if(document.getElementById("scat")){setCat("mat");}
+</script>{% endblock %}
 {% block header %}<header>{% if g.user.role=='admin' %}{% with href=url_for('finance') %}{% include "_back.html" %}{% endwith %}{% endif %}<h1>График работ и выплат</h1></header>{% endblock %}
 {% block content %}
 {% if g.user.role == 'admin' %}{% set t='schedule' %}{% include "_fin_tabs.html" %}{% endif %}
 <div class="chips">{% for c in cs %}<a href="{{ url_for('schedule_page', c=c.id) }}" class="{{ 'on' if c.id==cid }}">{{ c.name }}{% if c.sub %} · {{ c.sub }}{% endif %}</a>{% endfor %}</div>
 {% if cid %}
 <div class="kpi">
-  <div class="red"><span class="small">Остаток к оплате</span><b>{{ tot.pay_left|money }}</b></div>
+  <div class="red"><span class="small">Остаток к оплате (материалы)</span><b>{{ tot.mat_left|money }}</b></div>
   <div class="red"><span class="small">Остаток по работе</span><b>{{ tot.work_left|money }}</b></div>
   <div><span class="small">Переходящий (просрочено)</span><b>{{ tot.carry|money }}</b></div>
-  <div class="grn"><span class="small">Оплачено</span><b>{{ (tot.pay_all - tot.pay_left)|money }}</b></div>
+  <div class="grn"><span class="small">Оплачено</span><b>{{ tot.paid|money }}</b></div>
 </div>
 <div class="tbl"><table><tr><th>Число</th><th>Что</th><th class="n">Сумма / статус</th></tr>
 {% for r in rows %}<tr>
   <td>{{ r.day|d }}{% if r.carry %}<span class="carry">переходит</span>{% endif %}</td>
-  <td><b>{{ r.title }}</b><div class="small">{{ 'Работа' if r.kind=='work' else 'Выплата' }}{% if r.party %} · {{ r.party }}{% endif %}{% if r.number %} · кв. {{ r.number }}{% endif %}</div></td>
+  <td><b>{{ r.title }}</b><div class="small">{{ 'Работа' if r.kind=='work' else 'Материал' }} · {{ CATS_SHORT.get(r.category, '') }}{% if r.subcat %}: {{ r.subcat }}{% endif %}{% if r.party %} · {{ r.party }}{% endif %}{% if r.number %} · кв. {{ r.number }}{% endif %}</div></td>
   <td class="n">{{ r.amount|money }}<form method="post" style="margin-top:6px"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="sid" value="{{ r.id }}"><input type="hidden" name="c" value="{{ cid }}"><input type="hidden" name="act" value="toggle">
-    <button class="tog {{ 'on' if r.done else 'off' }}">{% if r.kind=='pay' %}{{ 'Оплачено' if r.done else 'Не оплачено' }}{% else %}{{ 'Выполнено' if r.done else 'Не выполнено' }}{% endif %}</button></form></td>
+    <button class="tog {{ 'on' if r.done else 'off' }}">{{ 'Оплачено' if r.done else 'Не оплачено' }}</button></form></td>
 </tr>{% else %}<tr><td colspan="3" class="small">Строк пока нет.</td></tr>{% endfor %}</table></div>
 <details class="card" {{ 'open' if not rows }}><summary style="cursor:pointer;font-weight:600">+ Добавить в график</summary>
   <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="act" value="create"><input type="hidden" name="complex_id" value="{{ cid }}"><input type="hidden" name="c" value="{{ cid }}">
     <div class="roles" style="grid-template-columns:1fr 1fr;margin-top:8px">
-      <input type="radio" name="kind" id="s1" value="pay" checked><label for="s1">Выплата</label>
-      <input type="radio" name="kind" id="s2" value="work"><label for="s2">Работа</label></div>
-    <label>Что</label><input name="title" placeholder="Аванс плиточнику" required>
-    <div class="grid2"><div><label>Число</label><input type="date" name="day" value="{{ today }}" required></div><div><label>Сумма, ₸</label><input name="amount" inputmode="decimal"></div></div>
-    <div class="grid2"><div><label>Кому</label><input name="party"></div><div><label>Квартира</label><select name="flat_id"><option value="">Весь блок</option>{% for f in flats %}<option value="{{ f.id }}">Кв. {{ f.number }}</option>{% endfor %}</select></div></div>
-    <label>Категория (для факта расходов)</label><select name="category">{% for k, v in CATS.items() %}<option value="{{ k }}" {{ 'selected' if k=='works' }}>{{ v }}</option>{% endfor %}</select>
+      <input type="radio" name="kind" id="s1" value="mat" checked onchange="setCat('mat')"><label for="s1">Материал</label>
+      <input type="radio" name="kind" id="s2" value="work" onchange="setCat('work')"><label for="s2">Работа</label></div>
+    <label>Категория</label><select name="category" id="scat" onchange="fillSub('scat','ssub')">{% for k, v in CATS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <label>Вид</label><select name="subcat" id="ssub"></select>
+    <label>Описание (необязательно)</label><input name="title" placeholder="Например: аванс за плитку">
+    <div class="grid2"><div><label>Число</label><input type="date" name="day" value="{{ today }}" required></div><div><label>Сумма на 1 кв., ₸</label><input name="amount" inputmode="decimal"></div></div>
+    <label>Кому</label><input name="party">
+    <label>Квартиры (можно несколько; ничего не выбрано — весь блок)</label>
+    <div class="cx"><label><input type="checkbox" onchange="document.querySelectorAll('.fl').forEach(x=>x.checked=this.checked)"><b>Все</b></label>
+      {% for f in flats %}<label><input type="checkbox" class="fl" name="flat_ids" value="{{ f.id }}">{{ f.number }}</label>{% endfor %}</div>
     <button class="btn navy full" style="margin-top:12px">Добавить</button></form>
 </details>
 {% else %}<div class="card small">Нет доступных ЖК.</div>{% endif %}

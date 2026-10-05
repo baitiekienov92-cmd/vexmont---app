@@ -26,7 +26,18 @@ PR_ROLES = {"admin", "pm", "nach", "prorab"}          # сдают работы,
 OKK_ROLES = {"admin", "okk"}                           # принимают работы
 LEGAL_ROLES = {"admin", "devdir", "lawyer", "accountant"}
 MEASURE_ROLES = {"admin", "pm", "supply", "nach"}      # назначают и закрывают замеры
-CATS = {"rough": "Черновые материалы", "finish": "Чистовые материалы", "works": "Работы", "other": "Прочее"}
+CATS = {"rough_works": "Черновые работы", "finish_works": "Чистовые работы",
+        "rough_mat": "Черновые материалы", "finish_mat": "Чистовые материалы"}
+CATS_SHORT = {"rough_works": "Черн. работы", "finish_works": "Чист. работы", "rough_mat": "Черн. матер.", "finish_mat": "Чист. матер."}
+SUBCATS = {
+    "rough_works": ["Кондиционирование", "Сантехника", "Выравнивание стен", "Выравнивание пола", "Теплый пол", "Электрика", "Керамогранит"],
+    "finish_works": ["Обои", "Покраска стен", "Ламинат", "Сантехника", "Электрика", "Натяжной потолок", "Двери", "Клининг"],
+    "rough_mat": ["Гипсокартон и профиль", "Штукатурка и шпаклевка", "Наливной пол", "Кабель и электромонтаж",
+                  "Трубы и фитинги", "Гидроизоляция", "Грунтовка", "Утеплитель и звукоизоляция"],
+    "finish_mat": ["Кафель", "Ламинат", "Ванна", "Электрика", "Сантехника", "Мебель", "Плинтус", "Двери"],
+}
+LIMIT_COL = {"rough_mat": "rough", "finish_mat": "finish"}   # лимиты: черновые и чистовые материалы
+REQ_STATUS = {"new": "Ждёт РП", "pm_ok": "✅ РП согласовал", "paid": "Оплачено", "rejected": "Не оплачивать", "pm_rejected": "Отклонено РП"}
 CONTRACT_KINDS = {"client": "С заказчиками", "contractor": "С подрядчиками", "supplier": "С поставщиками"}
 ROLE_SHORT = {"admin": "ген. директор", "devdir": "дир. по развитию", "pm": "руководитель проекта", "supply": "снабжение",
               "nach": "начальник участка", "prorab": "прораб", "okk": "ОКК", "lawyer": "юрист",
@@ -53,7 +64,8 @@ def money(v):
 
 
 app.jinja_env.filters["money"] = money
-app.jinja_env.globals.update(TPL=TPL, N=N, ROLES=ROLES, CATS=CATS, CONTRACT_KINDS=CONTRACT_KINDS,
+app.jinja_env.globals.update(TPL=TPL, N=N, ROLES=ROLES, CATS=CATS, CATS_SHORT=CATS_SHORT, SUBCATS=SUBCATS, REQ_STATUS=REQ_STATUS,
+                             CONTRACT_KINDS=CONTRACT_KINDS,
                              MEASURE_KINDS=MEASURE_KINDS, PR_ROLES=PR_ROLES, OKK_ROLES=OKK_ROLES,
                              LEGAL_ROLES=LEGAL_ROLES, MEASURE_ROLES=MEASURE_ROLES)
 
@@ -227,8 +239,15 @@ def header_counts():
         "SELECT COUNT(*) AS n FROM events e JOIN flats f ON f.id=e.flat_id "
         f"WHERE f.complex_id IN {in_list(ids)}{extra} AND e.created>? AND COALESCE(e.user_id,0)<>?",
         (g.user["notes_seen"] or "", g.user["id"]), one=True)["n"]
-    newreq = db.q("SELECT COUNT(*) AS n FROM requests WHERE status='new'", one=True)["n"] if is_gd() else 0
-    return {"tasks_n": len(task_works()), "unread": unread, "newreq": newreq}
+    newreq = db.q("SELECT COUNT(*) AS n FROM requests WHERE status='pm_ok'", one=True)["n"] if is_gd() else 0
+    pm_n = len(pm_pending()) if g.user["role"] == "pm" else 0
+    return {"tasks_n": len(task_works()) + pm_n, "unread": unread, "newreq": newreq}
+
+
+def pm_pending():
+    return db.q("SELECT r.*, c.name AS cname, f.number, u.name AS uname FROM requests r JOIN complexes c ON c.id=r.complex_id "
+                "LEFT JOIN flats f ON f.id=r.flat_id LEFT JOIN users u ON u.id=r.user_id "
+                f"WHERE r.status='new' AND r.complex_id IN {in_list(complex_ids())} ORDER BY r.id")
 
 
 def log(flat_id, stage, kind, text):
@@ -499,6 +518,7 @@ def stages():
     measures = db.q("SELECT m.*, f.number, c.name AS cname FROM measures m JOIN flats f ON f.id=m.flat_id JOIN complexes c ON c.id=f.complex_id "
                     f"WHERE f.complex_id IN {in_list(ids)} AND m.status<>'done' ORDER BY m.id DESC")
     return render_template("stages.html", cs=cs, cid=cid, rows=rows, flats=flats_l, tasks=task_works(), measures=measures,
+                           pm_reqs=pm_pending() if g.user["role"] == "pm" else [],
                            open_st=request.args.get("s", type=int), nav="stages")
 
 
@@ -697,7 +717,7 @@ def measure_act(mid, act):
 def fact_rows(cid):
     """Факт расходов: оплаченные заявки + оплаченные строки графика выплат."""
     rows = db.q("SELECT flat_id, category, amount FROM requests WHERE complex_id=? AND status='paid'", (cid,))
-    rows += db.q("SELECT flat_id, category, amount FROM schedule WHERE complex_id=? AND kind='pay' AND done=1", (cid,))
+    rows += db.q("SELECT flat_id, category, amount FROM schedule WHERE complex_id=? AND done=1", (cid,))
     return rows
 
 
@@ -716,18 +736,19 @@ def complex_limits(cid):
 
 def limit_check(cid, flat_id, category, extra=0):
     """Возвращает текст предупреждения, если лимит превышен."""
-    if category not in ("rough", "finish"):
+    col = LIMIT_COL.get(category)
+    if not col:
         return ""
     lim = complex_limits(cid)
     facts = fact_rows(cid)
     msgs = []
     for key, label in ((0, "блок"), (flat_id or -1, "квартиру")):
         L = lim.get(key)
-        if not L or not L[category]:
+        if not L or not L[col]:
             continue
         used = sum(r["amount"] for r in facts if r["category"] == category and (key == 0 or r["flat_id"] == key)) + extra
-        if used > L[category]:
-            msgs.append(f"превышен лимит «{CATS[category]}» на {label}: {money(used)} из {money(L[category])}")
+        if used > L[col]:
+            msgs.append(f"превышен лимит «{CATS[category]}» на {label}: {money(used)} из {money(L[col])}")
     return "; ".join(msgs)
 
 
@@ -736,59 +757,81 @@ def gd_complexes():
 
 
 # ---------- заявки на выплату / закуп ----------
+REQ_CREATORS = {"nach"}
+
+
 @app.route("/requests", methods=["GET", "POST"])
 @staff_required
 def requests_page():
+    r = g.user["role"]
+    if r not in REQ_CREATORS | {"pm", "admin"}:
+        abort(403)
     ids = complex_ids()
     if request.method == "POST":
+        if r not in REQ_CREATORS:
+            abort(403)
         cid = request.form.get("complex_id", type=int)
         if cid not in ids:
             abort(403)
         fid = request.form.get("flat_id", type=int) or None
         cat = request.form.get("category")
         kind = request.form.get("kind")
+        sub = request.form.get("subcat", "")
         try:
             amount = float(request.form.get("amount", "0").replace(" ", "").replace(",", "."))
         except ValueError:
             amount = 0
-        if cat not in CATS or kind not in ("pay", "buy") or amount <= 0:
-            flash("Заполните тип, категорию и сумму")
+        if cat not in CATS or kind not in ("pay", "buy") or amount <= 0 or sub not in SUBCATS[cat]:
+            flash("Заполните тип, категорию, вид и сумму")
             return redirect(url_for("requests_page"))
-        db.x("INSERT INTO requests(kind, complex_id, flat_id, category, amount, party, descr, user_id, created) VALUES(?,?,?,?,?,?,?,?,?)",
-             (kind, cid, fid, cat, amount, request.form.get("party", "").strip()[:120], request.form.get("descr", "").strip()[:500], g.user["id"], now()))
+        db.x("INSERT INTO requests(kind, complex_id, flat_id, category, subcat, amount, party, descr, user_id, created) VALUES(?,?,?,?,?,?,?,?,?,?)",
+             (kind, cid, fid, cat, sub, amount, request.form.get("party", "").strip()[:120], request.form.get("descr", "").strip()[:500], g.user["id"], now()))
         db.commit()
         warn = limit_check(cid, fid, cat, amount)
-        flash("Заявка создана и отправлена генеральному директору" + (f". Внимание: {warn}" if warn else ""))
+        flash("Заявка отправлена руководителю проекта на согласование" + (f". Внимание: {warn}" if warn else ""))
         return redirect(url_for("requests_page"))
-    base = ("SELECT r.*, c.name AS cname, f.number, u.name AS uname FROM requests r JOIN complexes c ON c.id=r.complex_id "
-            "LEFT JOIN flats f ON f.id=r.flat_id LEFT JOIN users u ON u.id=r.user_id ")
-    if is_gd():
-        reqs = db.q(base + "ORDER BY CASE r.status WHEN 'new' THEN 0 WHEN 'approved' THEN 1 ELSE 2 END, r.id DESC")
+    base = ("SELECT r.*, c.name AS cname, f.number, u.name AS uname, p.name AS pmname FROM requests r JOIN complexes c ON c.id=r.complex_id "
+            "LEFT JOIN flats f ON f.id=r.flat_id LEFT JOIN users u ON u.id=r.user_id LEFT JOIN users p ON p.id=r.pm_by ")
+    order = "ORDER BY CASE r.status WHEN '{0}' THEN 0 ELSE 1 END, r.id DESC"
+    if r == "admin":
+        reqs = db.q(base + order.format("pm_ok"))
+    elif r == "pm":
+        reqs = db.q(base + f"WHERE r.complex_id IN {in_list(ids)} " + order.format("new"))
     else:
         reqs = db.q(base + "WHERE r.user_id=? ORDER BY r.id DESC", (g.user["id"],))
     cs = db.q(f"SELECT * FROM complexes WHERE id IN {in_list(ids)} ORDER BY id")
     flats_by = {}
     for f in db.q(f"SELECT * FROM flats WHERE complex_id IN {in_list(ids)} ORDER BY id"):
         flats_by.setdefault(f["complex_id"], []).append(f)
-    return render_template("requests.html", reqs=reqs, cs=cs, flats_by=flats_by, nav="fin" if is_gd() else "profile",
+    return render_template("requests.html", reqs=reqs, cs=cs, flats_by=flats_by, can_create=r in REQ_CREATORS,
+                           nav="fin" if r == "admin" else "profile",
                            pre_c=request.args.get("c", type=int), pre_f=request.args.get("f", type=int))
 
 
 @app.route("/requests/<int:rid>/<act>", methods=["POST"])
-@admin_required
+@staff_required
 def request_act(rid, act):
-    st = {"approve": "approved", "reject": "rejected", "paid": "paid"}.get(act)
-    if not st:
-        abort(400)
-    r = db.q("SELECT * FROM requests WHERE id=?", (rid,), one=True)
-    if not r:
+    req = db.q("SELECT * FROM requests WHERE id=?", (rid,), one=True)
+    if not req:
         abort(404)
-    db.x("UPDATE requests SET status=?, decided=? WHERE id=?", (st, now(), rid))
+    r = g.user["role"]
+    if r == "pm" and act in ("pm_ok", "pm_reject") and req["status"] == "new":
+        check_complex(req["complex_id"])
+        st = "pm_ok" if act == "pm_ok" else "pm_rejected"
+        db.x("UPDATE requests SET status=?, pm_by=?, pm_at=? WHERE id=?", (st, g.user["id"], now(), rid))
+        flash("✅ Согласовано — заявка ушла генеральному директору" if st == "pm_ok" else "Заявка отклонена")
+    elif r == "admin" and act in ("pay", "nopay") and req["status"] == "pm_ok":
+        st = "paid" if act == "pay" else "rejected"
+        db.x("UPDATE requests SET status=?, decided=? WHERE id=?", (st, now(), rid))
+        if st == "paid":
+            warn = limit_check(req["complex_id"], req["flat_id"], req["category"])
+            flash("Оплата подтверждена — сумма ушла в факт расходов" + (f". Внимание: {warn}" if warn else ""))
+        else:
+            flash("Отмечено: не оплачивать")
+    else:
+        abort(403)
     db.commit()
-    if st == "paid":
-        warn = limit_check(r["complex_id"], r["flat_id"], r["category"])
-        flash("Отмечено как оплачено — сумма ушла в факт" + (f". Внимание: {warn}" if warn else ""))
-    return redirect(url_for("requests_page"))
+    return redirect(request.form.get("back") or url_for("requests_page"))
 
 
 # ---------- финансы (только ген. директор) ----------
@@ -884,7 +927,7 @@ def plan_template():
     ws.title = "План"
     ws.append(["Квартира (пусто = весь блок)", "Категория", "Сумма, ₸"])
     for f in db.q("SELECT number FROM flats WHERE complex_id=? ORDER BY id", (cid,)):
-        for k in ("rough", "finish", "works"):
+        for k in CATS:
             ws.append([f["number"], CATS[k], None])
     for col, w in zip("ABC", (28, 22, 16)):
         ws.column_dimensions[col].width = w
@@ -934,12 +977,19 @@ def schedule_page():
                 amount = float(request.form.get("amount", "0").replace(" ", "").replace(",", ".") or 0)
             except ValueError:
                 amount = 0
-            kind = request.form.get("kind") if request.form.get("kind") in ("work", "pay") else "pay"
-            cat = request.form.get("category") if request.form.get("category") in CATS else "works"
-            db.x("INSERT INTO schedule(complex_id, flat_id, kind, title, party, day, amount, category, user_id, created) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                 (cid, request.form.get("flat_id", type=int) or None, kind, request.form.get("title", "").strip()[:200] or "Без названия",
-                  request.form.get("party", "").strip()[:120], request.form.get("day", "")[:10] or now()[:10], amount, cat, g.user["id"], now()))
-            flash("Строка добавлена в график")
+            kind = request.form.get("kind") if request.form.get("kind") in ("work", "mat") else "work"
+            cat = request.form.get("category") if request.form.get("category") in CATS else "rough_works"
+            sub = request.form.get("subcat", "")
+            if sub not in SUBCATS[cat]:
+                sub = ""
+            valid = {f["id"] for f in db.q("SELECT id FROM flats WHERE complex_id=?", (cid,))}
+            fids = [f for f in request.form.getlist("flat_ids", type=int) if f in valid] or [None]
+            title = request.form.get("title", "").strip()[:200] or sub or CATS[cat]
+            for fid in fids:
+                db.x("INSERT INTO schedule(complex_id, flat_id, kind, title, party, day, amount, category, subcat, user_id, created) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                     (cid, fid, kind, title, request.form.get("party", "").strip()[:120], request.form.get("day", "")[:10] or now()[:10],
+                      amount, cat, sub, g.user["id"], now()))
+            flash(f"Добавлено в график: {len(fids)} {'строк' if len(fids) > 4 else 'строки' if len(fids) > 1 else 'строка'}")
         else:
             sid = request.form.get("sid", type=int)
             row = db.q("SELECT * FROM schedule WHERE id=?", (sid,), one=True)
@@ -957,10 +1007,9 @@ def schedule_page():
     for r in rows:
         r["carry"] = (not r["done"]) and r["day"] < today
     tot = {
-        "pay_all": sum(r["amount"] for r in rows if r["kind"] == "pay"),
-        "pay_left": sum(r["amount"] for r in rows if r["kind"] == "pay" and not r["done"]),
-        "work_all": sum(r["amount"] for r in rows if r["kind"] == "work"),
+        "mat_left": sum(r["amount"] for r in rows if r["kind"] != "work" and not r["done"]),
         "work_left": sum(r["amount"] for r in rows if r["kind"] == "work" and not r["done"]),
+        "paid": sum(r["amount"] for r in rows if r["done"]),
         "carry": sum(r["amount"] for r in rows if r["carry"]),
     }
     flats_l = db.q("SELECT * FROM flats WHERE complex_id=? ORDER BY id", (cid,)) if cid else []

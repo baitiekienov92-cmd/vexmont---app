@@ -15,7 +15,7 @@
 <div class="tbl"><table><tr><th>Категория</th><th class="n">Факт</th></tr>
 {% for k, v in CATS.items() %}<tr><td>{{ v }}</td><td class="n">{{ d.fact_cat.get(k, 0)|money }}</td></tr>{% endfor %}</table></div>
 <h3>{{ d.c.name }}: по квартирам</h3>
-<div class="tbl"><table><tr><th>Кв.</th>{% for k, v in CATS.items() %}<th class="n">{{ v.split()[0] }}</th>{% endfor %}<th class="n">Итого</th></tr>
+<div class="tbl"><table><tr><th>Кв.</th>{% for k in CATS %}<th class="n">{{ CATS_SHORT[k] }}</th>{% endfor %}<th class="n">Итого</th></tr>
 <tr><td class="small">на блок</td>{% for k in CATS %}<td class="n">{{ d.fact_flat_cat.get((0,k),0)|money }}</td>{% endfor %}<td class="n">{{ d.fact_flat.get(0,0)|money }}</td></tr>
 {% for f in d.flats %}<tr><td>{{ f.number }}</td>{% for k in CATS %}<td class="n">{{ d.fact_flat_cat.get((f.id,k),0)|money }}</td>{% endfor %}<td class="n"><b>{{ d.fact_flat.get(f.id,0)|money }}</b></td></tr>{% endfor %}</table></div>
 <p class="small">Факт считается автоматически: оплаченные заявки и оплаченные строки графика выплат.</p>
@@ -47,7 +47,7 @@
 <h3>Лимиты: {{ d.c.name }}</h3>
 {% macro lim(label, key, fid) %}{% set L = d.limits.get(key) %}
 <div class="card"><b>{{ label }}</b>
-  {% for cat in ('rough','finish') %}{% set lv = L[cat] if L else 0 %}
+  {% for col, cat in (('rough','rough_mat'),('finish','finish_mat')) %}{% set lv = L[col] if L else 0 %}
   {% set used = d.fact_cat.get(cat,0) if key==0 else d.fact_flat_cat.get((key,cat),0) %}
   <div class="row" style="margin-top:8px"><span class="small">{{ CATS[cat] }}</span><span class="small {{ 'neg' if lv and used>lv }}">{{ used|money }} / {{ lv|money if lv else 'нет лимита' }}</span></div>
   {% if lv %}<div class="lbar"><i class="{{ 'over' if used>lv }}" style="width:{{ [used*100/lv,100]|min }}%"></i></div>{% endif %}

@@ -7,7 +7,7 @@
 <div class="plist">
   <div><span>Телефон</span><b>{{ g.user.phone }}</b></div>
   <div><span>Доступно ЖК</span><b>{{ n_c }}</b></div>
-  {% if g.user.role != 'client' %}<a href="{{ url_for('requests_page') }}">Заявки на выплату и закуп <span>›</span></a>{% endif %}
+  {% if g.user.role in ('nach','pm','admin') %}<a href="{{ url_for('requests_page') }}">Заявки на оплату и закуп <span>›</span></a>{% endif %}
   {% if g.user.role == 'admin' %}
   <a href="{{ url_for('admin_users') }}">Сотрудники и заявки <span>›</span></a>
   <a href="{{ url_for('admin_objects') }}">Объекты (ЖК и квартиры) <span>›</span></a>

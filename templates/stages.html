@@ -10,6 +10,20 @@
 </a>
 {% else %}<div class="card small">Задач нет.</div>{% endfor %}
 
+{% if pm_reqs %}
+<h3>Заявки на согласование · {{ pm_reqs|length }}</h3>
+{% for r in pm_reqs %}
+<div class="card">
+  <div class="row"><b>{{ r.amount|money }}</b><span class="pill new">Ждёт ✅</span></div>
+  <div class="small">{{ 'Оплата работы' if r.kind=='pay' else 'Закуп материала' }} · {{ CATS.get(r.category, r.category) }}{% if r.subcat %}: {{ r.subcat }}{% endif %} · {{ r.cname }}{% if r.number %}, кв. {{ r.number }}{% endif %}</div>
+  {% if r.descr %}<div style="font-size:14px">{{ r.descr }}</div>{% endif %}<div class="small">{{ r.uname }} · {{ r.created|d }}</div>
+  <div class="acts">
+    <form method="post" action="{{ url_for('request_act', rid=r.id, act='pm_reject') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="back" value="{{ url_for('stages') }}"><button class="btn danger">Отклонить</button></form>
+    <form method="post" action="{{ url_for('request_act', rid=r.id, act='pm_ok') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="back" value="{{ url_for('stages') }}"><button class="btn green">✅ Согласовать</button></form>
+  </div>
+</div>{% endfor %}
+{% endif %}
+
 {% if measures %}
 <h3>Замеры в работе · {{ measures|length }}</h3>
 {% for m in measures %}

@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS requests(
 CREATE TABLE IF NOT EXISTS schedule(
   id {PK}, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
   flat_id INTEGER, kind TEXT NOT NULL, title TEXT NOT NULL, party TEXT DEFAULT '', day TEXT NOT NULL,
-  amount REAL DEFAULT 0, category TEXT DEFAULT 'works', done INTEGER DEFAULT 0, user_id INTEGER, created TEXT NOT NULL);
+  amount REAL DEFAULT 0, category TEXT DEFAULT 'rough_works', done INTEGER DEFAULT 0, user_id INTEGER, created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS plans(
   id {PK}, complex_id INTEGER NOT NULL REFERENCES complexes(id) ON DELETE CASCADE,
   flat_id INTEGER, category TEXT NOT NULL, amount REAL NOT NULL);
@@ -130,13 +130,21 @@ def init():
         cur.execute(stmt)
     con.commit()
     # миграции для уже работающей базы
-    for table, col, typ in (("users", "can_sched", "INTEGER DEFAULT 0"), ("works", "sent_by", "INTEGER")):
+    for table, col, typ in (("users", "can_sched", "INTEGER DEFAULT 0"), ("works", "sent_by", "INTEGER"),
+                            ("requests", "subcat", "TEXT DEFAULT ''"), ("requests", "pm_by", "INTEGER"),
+                            ("requests", "pm_at", "TEXT DEFAULT ''"), ("schedule", "subcat", "TEXT DEFAULT ''")):
         if PG:
             cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {typ}")
         else:
             cols = [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
             if col not in cols:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+    # старые категории → новые 4 раздела
+    for old, new in (("rough", "rough_mat"), ("finish", "finish_mat"), ("works", "rough_works"), ("other", "rough_mat")):
+        for table in ("requests", "schedule", "plans"):
+            cur.execute(f"UPDATE {table} SET category='{new}' WHERE category='{old}'")
+    cur.execute("UPDATE requests SET status='pm_ok' WHERE status='approved'")
+    cur.execute("UPDATE schedule SET kind='mat' WHERE kind='pay'")
     con.commit()
     con.close()
 

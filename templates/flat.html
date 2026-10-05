@@ -41,7 +41,7 @@
     </div>{% endif %}
   </div>{% endfor %}
 </details>
-<a class="btn ghost full" style="margin-bottom:10px" href="{{ url_for('requests_page', c=c.id, f=f.id) }}#new">Заявка на выплату или закуп</a>
+{% if g.user.role == 'nach' %}<a class="btn ghost full" style="margin-bottom:10px" href="{{ url_for('requests_page', c=c.id, f=f.id) }}#new">Заявка на оплату работы или закуп</a>{% endif %}
 {% endif %}
 
 {% for cd in cards %}{% set i = cd.i %}
